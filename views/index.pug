@@ -1,5 +1,11 @@
 extends layout
 
 block content
-  h1= title
-  p Welcome to #{title}
+  .container          
+    .jumbotron.jumbotron-fluid.bg-light.py-5 
+      .container.text-center    
+        h1= title              
+        p.lead Welcome to Members Only!
+        a.btn.btn-primary(href="/login") Log In
+        p.mt-3                
+        a.btn.btn-secondary(href="/signup") Sign Up
