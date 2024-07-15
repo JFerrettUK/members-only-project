@@ -1,1 +1,24 @@
 extends layout
+
+block content
+  .jumbotron.jumbotron-fluid.bg-light.py-5
+    .container
+      h1.text-center= title
+
+      form.col-md-6.mx-auto(action="/join", method="post") 
+        div.form-group.mb-3
+          label.form-label(for="passcode") Secret Passcode:
+          input#passcode.form-control(type="password", name="passcode", required)
+
+        .text-center.mb-4
+          button.btn.btn-primary(type="submit") Join the Club
+
+        .d-flex.justify-content-between 
+          .text-center 
+            p
+              small Already a member?  
+              a.btn.btn-outline-primary(href="/login") Log In 
+          .text-center
+            p
+              small Need to sign up? 
+              a.btn.btn-outline-primary(href="/signup") Sign Up
