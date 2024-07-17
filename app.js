@@ -8,8 +8,8 @@ const session = require("express-session");
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
 const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
 const config = require("./config");
+const User = require("./models/user"); // Import the User model
 
 const app = express(); // Declare and initialize 'app' here
 
@@ -46,11 +46,12 @@ app.use(express.static(path.join(__dirname, "public")));
 // Passport configuration
 passport.use(
   new LocalStrategy(
-    { usernameField: "email" },
-    async (username, password, done) => {
+    { usernameField: "email" }, // Use 'email' instead of 'username'
+    async (email, password, done) => {
       try {
-        const user = await User.findOne({ username });
-        if (!user) return done(null, false, { message: "Incorrect username" });
+        const user = await User.findOne({ email }); // Find by email
+        if (!user) return done(null, false, { message: "Incorrect email" });
+
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch)
           return done(null, false, { message: "Incorrect password" });
@@ -74,7 +75,7 @@ passport.deserializeUser(async (id, done) => {
 
 // Routes
 app.use("/", indexRouter);
-app.use("/signup", signupRouter); // Order doesn't matter now
+app.use("/signup", signupRouter);
 app.use("/login", loginRouter);
 app.use("/join", joinRouter);
 app.use("/auth", authRouter);
