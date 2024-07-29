@@ -4,10 +4,20 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const { body, validationResult } = require("express-validator");
 const User = require("../models/user");
+const mongoose = require("mongoose"); // Import mongoose here
 
 // GET signup form
 router.get("/", (req, res, next) => {
-  res.render("signup", { title: "Sign Up - Members Only" });
+  // Render the signup form with any previous input data (if available)
+  res.render("signup", {
+    title: "Sign Up - Members Only",
+    data: req.session.signupData || {}, // Load data from session or use an empty object
+    errors: req.session.signupErrors, // Load any stored errors
+  });
+
+  // Clear the signup data and errors from the session after rendering
+  delete req.session.signupData;
+  delete req.session.signupErrors;
 });
 
 // POST signup form data
@@ -15,72 +25,78 @@ router.post(
   "/",
   [
     // Validation rules
-    body("email", "Email is not valid").isEmail().normalizeEmail(),
-    body("password", "Password must be at least 5 characters long").isLength({
-      min: 5,
-    }),
-    body("confirmPassword").custom((value, { req }) => {
-      if (value !== req.body.password) {
-        throw new Error("Passwords do not match");
-      }
-      return true;
-    }),
+    body("firstName").trim().notEmpty().withMessage("First Name is required"),
+    body("lastName").trim().notEmpty().withMessage("Last Name is required"),
+    body("email").isEmail().normalizeEmail().withMessage("Email is not valid"),
+    body("password")
+      .isLength({ min: 5 })
+      .withMessage("Password must be at least 5 characters long"),
   ],
   async (req, res, next) => {
     try {
-      console.log("Form data:", req.body); // Log the form data
+      delete req.session.signupErrors;
+      req.session.signupErrors = [];
 
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.render("signup", {
-          title: "Sign Up - Members Only",
-          errors: errors.array(),
-        });
+        // Store the form data and errors in the session for re-rendering
+        req.session.signupData = req.body;
+        req.session.signupErrors = errors.array();
+        return res.redirect("/signup");
       }
 
-      const existingUser = await User.findOne({ email: req.body.email });
+      const existingUser = await User.findOne({
+        email: req.body.email.toLowerCase(),
+      });
       if (existingUser) {
-        console.error("Email already in use");
-        return res.render("signup", {
-          title: "Sign Up - Members Only",
-          errors: [{ msg: "Email already in use" }],
-        });
+        req.session.signupData = req.body;
+        req.session.signupErrors = [{ msg: "Email already in use" }]; // Only set this error message
+        return res.redirect("/signup"); // Redirect with error
       }
 
       const hashedPassword = await bcrypt.hash(req.body.password, 10);
-      await User.create({
+
+      const newUser = new User({
         fullName: {
           firstName: req.body.firstName,
           lastName: req.body.lastName,
         },
         email: req.body.email,
         password: hashedPassword,
-      })
-        .then(() => {
-          // Add .then() to handle successful user creation
-          console.log("User created successfully!");
-          res.redirect("/login");
-        })
-        .catch((err) => {
-          // Add .catch() to handle promise rejections (e.g., validation errors)
-          if (err.code === 11000) {
-            // Check for duplicate key (email) error
-            console.error("Email already in use:", err);
-            return res.render("signup", {
-              title: "Sign Up - Members Only",
-              errors: [{ msg: "Email already in use" }],
-            });
-          } else {
-            console.error("Error creating user:", err);
-            return res.render("signup", {
-              title: "Sign Up - Members Only",
-              errors: [{ msg: "Error during signup. Please try again." }], // More generic error message
-            });
-          }
-        });
+      });
+
+      try {
+        // Check if Mongoose connection is ready
+        if (mongoose.connection.readyState !== 1) {
+          throw new Error("MongoDB connection not ready");
+        }
+
+        // Save the new user
+        await newUser.save();
+        res.redirect("/login");
+      } catch (err) {
+        // Handle errors during user creation
+        if (err.name === "ValidationError") {
+          // Store form data and validation errors in the session
+          req.session.signupData = req.body;
+          req.session.signupErrors = Object.values(err.errors).map((error) => ({
+            msg: error.message,
+          }));
+        } else if (err.code === 11000) {
+          // Check for duplicate key error
+          req.session.signupErrors = [{ msg: "Email already in use" }];
+        } else {
+          console.error("Error saving user:", err);
+          req.session.signupErrors = [
+            { msg: "Error during signup. Please try again." },
+          ];
+        }
+
+        return res.redirect("/signup");
+      }
     } catch (err) {
-      // This catch block handles other unexpected errors
-      console.error("Error in signup route:", err);
+      // Handle other unexpected errors
+      console.error("Unexpected error in signup route:", err);
       res.status(500).send("Internal Server Error");
     }
   }
