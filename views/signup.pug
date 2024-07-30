@@ -5,7 +5,7 @@ block content
     .container
       h1.text-center= title
 
-      if errors && errors.length 
+      if errors && errors.length > 0
         ul.alert.alert-danger.my-3
           each error in errors
             li= error.msg
@@ -25,6 +25,22 @@ block content
 
         div.form-group.mb-3
           label.form-label(for="password") Password:
-          input#password.form-control(type="password", name="password", required)
-
+          input#password.form-control(type="password", name="password", minlength="5", required)
+          
         button.btn.btn-primary(type="submit") Sign Up
+
+
+      script.
+        // Client-Side Password Validation
+        const passwordField = document.getElementById('password');
+        const form = document.querySelector('form');
+
+        form.addEventListener('submit', (event) => {
+          if (!passwordField.validity.valid) {
+            // Prevent form submission if password is invalid
+            event.preventDefault();
+
+            // Optionally, display a custom error message here
+            // You could use another div or alert to show the error
+          }
+        });

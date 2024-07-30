@@ -5,13 +5,14 @@ const cookieParser = require("cookie-parser");
 const logger = require("morgan");
 const bcrypt = require("bcryptjs");
 const session = require("express-session");
+const MongoStore = require("connect-mongo");
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
 const mongoose = require("mongoose");
 const config = require("./config");
-const User = require("./models/user"); // Import the User model
+const User = require("./models/user");
 
-const app = express(); // Declare and initialize 'app' here
+const app = express();
 
 // Connect to MongoDB
 mongoose.set("strictQuery", false);
@@ -31,10 +32,34 @@ const authRouter = require("./routes/auth");
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "pug");
 
-// Middleware
+// Session configuration with MongoDB session store
 app.use(
-  session({ secret: config.secret, resave: false, saveUninitialized: true })
+  session({
+    secret: config.secret,
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: config.mongoURI,
+      ttl: 14 * 24 * 60 * 60, // = 14 days. Default
+      autoRemove: "interval",
+      autoRemoveInterval: 10, // In minutes. Default
+    }),
+  })
 );
+
+// Middleware to log session data (for debugging)
+app.use(
+  (req, res, next) => {
+    console.log("Request URL:", req.url); // Log the current URL
+    console.log("Session Data (before):", req.session); // Log session data
+    next(); // Continue to the next middleware or route handler
+  },
+  (req, res, next) => {
+    console.log("Session Data (after):", req.session); // Log session data again
+    next();
+  }
+);
+
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(logger("dev"));
@@ -49,7 +74,7 @@ passport.use(
     { usernameField: "email" }, // Use 'email' instead of 'username'
     async (email, password, done) => {
       try {
-        const user = await User.findOne({ email }); // Find by email
+        const user = await User.findOne({ email });
         if (!user) return done(null, false, { message: "Incorrect email" });
 
         const isMatch = await bcrypt.compare(password, user.password);

@@ -4,11 +4,17 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const { body, validationResult } = require("express-validator");
 const User = require("../models/user");
-const mongoose = require("mongoose"); // Import mongoose here
+const mongoose = require("mongoose");
 
 // GET signup form
 router.get("/", (req, res, next) => {
-  // Render the signup form with any previous input data (if available)
+  // Log the session data before rendering
+  console.log("GET Session Data:", req.session);
+
+  delete req.session.signupData;
+  delete req.session.signupErrors;
+
+  console.log("Session Data (after delete):", req.session); // Add this line
   res.render("signup", {
     title: "Sign Up - Members Only",
     data: req.session.signupData || {}, // Load data from session or use an empty object
@@ -34,23 +40,29 @@ router.post(
   ],
   async (req, res, next) => {
     try {
-      delete req.session.signupErrors;
-      req.session.signupErrors = [];
+      console.log("POST Session Data (before reset):", req.session); // Log before reset
+
+      req.session.signupErrors = []; // Reset signupErrors
+
+      console.log("POST Session Data (after reset):", req.session); // Log after reset
 
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        // Store the form data and errors in the session for re-rendering
         req.session.signupData = req.body;
         req.session.signupErrors = errors.array();
         return res.redirect("/signup");
       }
 
+      // Normalize and ensure email is a string for case-insensitive comparison
       const existingUser = await User.findOne({
-        email: req.body.email.toLowerCase(),
+        email: String(req.body.email).toLowerCase(),
       });
+
+      console.log("Existing User:", existingUser);
+
       if (existingUser) {
         req.session.signupData = req.body;
-        req.session.signupErrors = [{ msg: "Email already in use" }]; // Only set this error message
+        req.session.signupErrors = [{ msg: "Email already in use" }];
         return res.redirect("/signup"); // Redirect with error
       }
 
@@ -73,11 +85,12 @@ router.post(
 
         // Save the new user
         await newUser.save();
-        res.redirect("/login");
+        // Clear the signup errors in case it was set before
+        delete req.session.signupErrors;
+        res.redirect("/login"); // Redirect after successful signup
       } catch (err) {
         // Handle errors during user creation
         if (err.name === "ValidationError") {
-          // Store form data and validation errors in the session
           req.session.signupData = req.body;
           req.session.signupErrors = Object.values(err.errors).map((error) => ({
             msg: error.message,
