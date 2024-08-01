@@ -5,6 +5,11 @@ block content
     .container
       h1.text-center= title
 
+      // Check if query.error exists AND is 'true'
+      if query && query.error === 'true'
+        .alert.alert-danger
+          p Incorrect email or password.
+
       form.col-md-6.mx-auto(action="/login", method="post")
         div.form-group.mb-3
           label.form-label(for="email") Email: 
